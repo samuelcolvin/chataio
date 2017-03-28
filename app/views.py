@@ -70,7 +70,7 @@ async def websocket(request):
     send_event_ = partial(send_event, ws)
     user = None
 
-    async with request.app['pg'].acquire() as conn:
+    async with request.app['pg'].acquire(timeout=5) as conn:
         await conn.add_listener('events', send_event_)
         messages = await conn.fetch('SELECT row_to_json(messages) as v FROM messages ORDER BY ts DESC LIMIT 10')
         for msg in reversed(messages):
