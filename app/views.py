@@ -6,11 +6,8 @@ from functools import partial
 from aiohttp import WSMsgType
 from aiohttp.web import Response, WebSocketResponse
 
-logger = logging.getLogger('chataio')
-hdlr = logging.StreamHandler()
-hdlr.setLevel(logging.INFO)
+logger = logging.getLogger('chataio.views')
 logger.setLevel(logging.INFO)
-logger.addHandler(hdlr)
 
 
 BASE_PAGE = """\
@@ -59,9 +56,11 @@ def send_event(ws, conn, pid, channel, payload):
         ws.send_str(payload)
 
 
-async def disconnect_user(app, user):
-    async with app['pg'].acquire() as conn:
+async def disconnect_user(app, conn, user):
+    logger.info('disconnecting %s', user)
+    if user:
         await conn.execute('UPDATE users SET connected = FALSE WHERE name = $1;', user)
+    await app['pg'].release(conn)
 
 
 async def websocket(request):
@@ -70,7 +69,8 @@ async def websocket(request):
     send_event_ = partial(send_event, ws)
     user = None
 
-    async with request.app['pg'].acquire(timeout=5) as conn:
+    conn = await request.app['pg']._acquire(timeout=5)
+    try:
         await conn.add_listener('events', send_event_)
         messages = await conn.fetch('SELECT row_to_json(messages) as v FROM messages ORDER BY ts DESC LIMIT 10')
         for msg in reversed(messages):
@@ -98,8 +98,8 @@ async def websocket(request):
                     user = data['username']
                     await conn.execute('INSERT INTO users (name) VALUES ($1) '
                                        'ON CONFLICT (name) DO UPDATE SET connected=TRUE', user)
-        if user:
-            # this has to use create_task as a cancel error will otherwise kill the db query
-            request.app.loop.create_task(disconnect_user(request.app, user))
+    finally:
+        # this has to use create_task as a cancel error will otherwise kill the db query
+        request.app.loop.create_task(disconnect_user(request.app, conn, user))
 
     return ws

@@ -1,13 +1,22 @@
+import logging
 from pathlib import Path
 
 import asyncpg
 from aiohttp import web
+from aiohttp_prodtools.middleware import error_middleware
 
 from .settings import Settings
 from .views import index, websocket
 
 THIS_DIR = Path(__file__).parent
 BASE_DIR = THIS_DIR.parent
+
+logger = logging.getLogger('chataio')
+hdlr = logging.StreamHandler()
+hdlr.setFormatter(logging.Formatter('%(levelname)s %(name)s %(message)s'))
+hdlr.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
+logger.addHandler(hdlr)
 
 
 async def startup(app: web.Application):
@@ -25,11 +34,12 @@ def setup_routes(app):
 
 
 def create_app(loop=None):
-    app = web.Application()
+    app = web.Application(middlewares=[error_middleware])
     settings = Settings()
     app.update(
         settings=settings,
         static_root_url='/static',
+        error_logger=logging.getLogger('chataio.errors'),
     )
 
     app.on_startup.append(startup)
