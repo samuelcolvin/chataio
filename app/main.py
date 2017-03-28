@@ -1,13 +1,13 @@
-import base64
+from pathlib import Path
 
-from aiohttp import web
-
-import aiohttp_session
-from aiohttp_session.cookie_storage import EncryptedCookieStorage
 import asyncpg
+from aiohttp import web
 
 from .settings import Settings
 from .views import index, websocket
+
+THIS_DIR = Path(__file__).parent
+BASE_DIR = THIS_DIR.parent
 
 
 async def startup(app: web.Application):
@@ -21,20 +21,19 @@ async def cleanup(app: web.Application):
 def setup_routes(app):
     app.router.add_get('/', index, name='index')
     app.router.add_get('/ws', websocket, name='websocket')
+    app.router.add_static(app['static_root_url'], path=BASE_DIR / 'static')
 
 
-def create_app(loop):
+def create_app():
     app = web.Application()
     settings = Settings()
     app.update(
-        settings=settings
+        settings=settings,
+        static_root_url='/static',
     )
 
     app.on_startup.append(startup)
     app.on_cleanup.append(cleanup)
-
-    secret_key = base64.urlsafe_b64decode(settings.COOKIE_SECRET)
-    aiohttp_session.setup(app, EncryptedCookieStorage(secret_key))
 
     setup_routes(app)
     return app
