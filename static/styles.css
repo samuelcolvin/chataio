@@ -8,11 +8,15 @@ main {
   margin: 0 auto;
   max-width: 940px;
   background-color: white;
-  padding: 20px 20px;
+  padding: 5px 20px 0;
+}
+
+h1 {
+  margin: 15px 0 8px;
 }
 
 #events {
-  height: calc(100vh - 220px);
+  height: calc(100vh - 300px);
   overflow-y: auto;
   border: 1px solid #aaa;
   padding: 10px 0;
@@ -30,4 +34,10 @@ main {
 #events label {
   color: #666;
   font-size: 0.9rem;
+}
+
+input {
+  margin: 10px 0;
+  padding: 5px;
+  width: 100%;
 }

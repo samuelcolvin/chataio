@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from functools import partial
@@ -22,10 +23,17 @@ BASE_PAGE = """\
 <main>
   <h1>{title}</h1>
   <div id="status">Initialising...</div>
+  <div>
+    Username: <span id="username">-</span>
+  </div>
+  <div>
+    Users Connected: <span id="users">-</span>
+  </div>
   <div id="events"></div>
   
+  <button type="button" id="connect">Connect</button>
+  <button type="button" id="disconnect">Disconnect</button>
   <form>
-    <input type="text" id="username" required placeholder="username">
     <input type="text" id="message" required placeholder="send message">
     <button type="submit">Send</button>
   </form>
@@ -35,10 +43,7 @@ BASE_PAGE = """\
 
 
 async def index(request):
-    logger.info('http scheme: %r', request.scheme)
-    logger.info('http headers: %r', request.headers)
     secure = 'https' in (request.scheme, request.headers.get('X-Forwarded-Proto'))
-    logger.info('http secure: %r', secure)
     ws_scheme = 'wss' if secure else 'ws'
     ctx = dict(
         title='Chat Test',
@@ -50,13 +55,20 @@ async def index(request):
 
 
 def send_event(ws, conn, pid, channel, payload):
-    ws.send_str(payload)
+    if not ws.closed:
+        ws.send_str(payload)
+
+
+async def disconnect_user(app, user):
+    async with app['pg'].acquire() as conn:
+        await conn.execute('UPDATE users SET connected = FALSE WHERE name = $1;', user)
 
 
 async def websocket(request):
     ws = WebSocketResponse()
     await ws.prepare(request)
     send_event_ = partial(send_event, ws)
+    user = None
 
     async with request.app['pg'].acquire() as conn:
         await conn.add_listener('events', send_event_)
@@ -64,13 +76,30 @@ async def websocket(request):
         for msg in reversed(messages):
             ws.send_str(msg[0])
 
-        async for msg in ws:
-            if msg.type == WSMsgType.TEXT:
+        while True:
+            try:
+                msg = await ws.receive(timeout=2)
+            except asyncio.TimeoutError:
+                assert not ws.closed
+                pass
+            else:
+                if msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED):
+                    break
+                elif msg.type == WSMsgType.ERROR:
+                    logger.warning('ws connection closed with exception %s', ws.exception())
+                    break
+                assert msg.type == WSMsgType.TEXT, msg.type
                 data = json.loads(msg.data)
-                args = data['action'], data['username'], data.get('message')
-                await conn.execute('INSERT INTO messages (action, username, message) VALUES ($1, $2, $3)', *args)
-            elif msg.type == WSMsgType.ERROR:
-                logger.info('ws connection closed with exception %s', ws.exception())
+                action = data['action']
+                if action == 'message' and user:
+                    args = user, data.get('message')
+                    await conn.execute('INSERT INTO messages (username, message) VALUES ($1, $2)', *args)
+                elif action == 'connected':
+                    user = data['username']
+                    await conn.execute('INSERT INTO users (name) VALUES ($1) '
+                                       'ON CONFLICT (name) DO UPDATE SET connected=TRUE', user)
+        if user:
+            # this has to use create_task as a cancel error will otherwise kill the db query
+            request.app.loop.create_task(disconnect_user(request.app, user))
 
-    logger.info('websocket connection closed')
     return ws
