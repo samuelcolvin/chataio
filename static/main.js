@@ -27,6 +27,7 @@ function Client () {
   clear()
   var conn = new WebSocket(document.body.getAttribute('data-ws-url'))
   var close_intended = false
+  var allow_alerts = false
 
   function add_message(message) {
     var new_el = document.createElement('p')
@@ -35,7 +36,7 @@ function Client () {
 <span class="right"><label>${message.ts}</label>
 </span>`
     events_elm.appendChild(new_el)
-    if (message.message.indexOf('!alert') === 0) {
+    if (allow_alerts && message.username !== localStorage.username && message.message.indexOf('!alert') === 0) {
       alert(message.message)
     }
   }
@@ -75,7 +76,9 @@ function Client () {
   conn.onopen = function () {
     clearInterval(restart)
     status_elm.innerHTML = 'Connected'
-    // setTimeout(this.connected, 100)
+    setTimeout(function () {
+      allow_alerts = true
+    }, 1000)
     send({action: 'connected', username: localStorage.username})
   }
 }
