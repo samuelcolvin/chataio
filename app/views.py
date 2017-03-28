@@ -78,10 +78,10 @@ async def websocket(request):
 
         while True:
             try:
-                msg = await ws.receive(timeout=2)
+                msg = await ws.receive(timeout=10)
             except asyncio.TimeoutError:
-                assert not ws.closed
-                pass
+                if not ws.closed:
+                    ws.ping()
             else:
                 if msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED):
                     break
