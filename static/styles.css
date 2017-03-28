@@ -1,0 +1,33 @@
+html, body {
+  font-family: Garamond, Georgia, serif;
+  margin: 0;
+  color: #373a3c;
+}
+
+main {
+  margin: 0 auto;
+  max-width: 940px;
+  background-color: white;
+  padding: 20px 20px;
+}
+
+#events {
+  height: calc(100vh - 220px);
+  overflow-y: auto;
+  border: 1px solid #aaa;
+  padding: 10px 0;
+  margin: 10px 0;
+}
+
+#events p {
+  margin: 5px 0;
+  border-top: 1px solid #ccc;
+  padding: 2px 8px;
+}
+.right {
+  float: right;
+}
+#events label {
+  color: #666;
+  font-size: 0.9rem;
+}
