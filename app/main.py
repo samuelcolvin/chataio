@@ -24,7 +24,7 @@ def setup_routes(app):
     app.router.add_static(app['static_root_url'], path=BASE_DIR / 'static')
 
 
-def create_app():
+def create_app(loop=None):
     app = web.Application()
     settings = Settings()
     app.update(

@@ -34,7 +34,7 @@ var status_elm = document.querySelector('#status')
 var form_elm = document.querySelector('form')
 var message_elm = document.querySelector('input#message')
 var username_elm = document.querySelector('input#username')
-var socket = new FancyWebSocket('ws://localhost:8000/ws')
+var socket = new FancyWebSocket(document.body.getAttribute('data-ws-url'))
 
 if (localStorage.username) {
   username_elm.value = localStorage.username

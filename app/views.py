@@ -1,8 +1,15 @@
 import json
+import logging
 from functools import partial
 
 from aiohttp import WSMsgType
 from aiohttp.web import Response, WebSocketResponse
+
+logger = logging.getLogger('chataio')
+hdlr = logging.StreamHandler()
+hdlr.setLevel(logging.INFO)
+logger.setLevel(logging.INFO)
+logger.addHandler(hdlr)
 
 
 BASE_PAGE = """\
@@ -11,7 +18,7 @@ BASE_PAGE = """\
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link href="{styles_css_url}" rel="stylesheet">
 </head>
-<body>
+<body data-ws-url="{ws_url}">
 <main>
   <h1>{title}</h1>
   <div id="status">Initialising...</div>
@@ -28,10 +35,16 @@ BASE_PAGE = """\
 
 
 async def index(request):
+    logger.info('http scheme: %r', request.scheme)
+    logger.info('http headers: %r', request.headers)
+    secure = 'https' in (request.scheme, request.headers.get('X-Forwarded-Proto'))
+    logger.info('http secure: %r', secure)
+    ws_scheme = 'wss' if secure else 'ws'
     ctx = dict(
         title='Chat Test',
         styles_css_url='{static_root_url}/styles.css'.format(**request.app),
         main_js_url='{static_root_url}/main.js'.format(**request.app),
+        ws_url=f'{ws_scheme}://{request.host}/ws'
     )
     return Response(text=BASE_PAGE.format(**ctx), content_type='text/html')
 
@@ -57,7 +70,7 @@ async def websocket(request):
                 args = data['action'], data['username'], data.get('message')
                 await conn.execute('INSERT INTO messages (action, username, message) VALUES ($1, $2, $3)', *args)
             elif msg.type == WSMsgType.ERROR:
-                print(f'ws connection closed with exception {ws.exception()}')
+                logger.info('ws connection closed with exception %s', ws.exception())
 
-    print('websocket connection closed')
+    logger.info('websocket connection closed')
     return ws
