@@ -11,7 +11,7 @@ WHERE pg_stat_activity.datname = $1 AND pid <> pg_backend_pid();
 """
 
 
-async def _prepare_database(delete_existing: bool) -> bool:
+async def _prepare_database(delete_existing: bool, create_db: bool) -> bool:
     """
     (Re)create a fresh database and run migrations.
 
@@ -21,24 +21,25 @@ async def _prepare_database(delete_existing: bool) -> bool:
     settings_no_db = Settings(DB_NAME=None)
     settings = Settings()
 
-    conn = await asyncpg.connect(dsn=settings_no_db.db_dsn)
-    try:
-        already_exists = await conn.fetchval('SELECT EXISTS (SELECT datname FROM pg_catalog.pg_database WHERE '
-                                             'datname=$1)', settings.DB_NAME)
-        if already_exists:
-            if not delete_existing:
-                print('database "{}" already exists, skipping'.format(settings.DB_NAME))
-                return False
+    if create_db:
+        conn = await asyncpg.connect(dsn=settings_no_db.db_dsn)
+        try:
+            already_exists = await conn.fetchval('SELECT EXISTS (SELECT datname FROM pg_catalog.pg_database WHERE '
+                                                 'datname=$1)', settings.DB_NAME)
+            if already_exists:
+                if not delete_existing:
+                    print('database "{}" already exists, skipping'.format(settings.DB_NAME))
+                    return False
+                else:
+                    await conn.execute(DROP_CONNECTIONS, settings.DB_NAME)
+                    print('dropping database "{}" as it already exists...'.format(settings.DB_NAME))
+                    await conn.execute('DROP DATABASE {}'.format(settings.DB_NAME))
             else:
-                await conn.execute(DROP_CONNECTIONS, settings.DB_NAME)
-                print('dropping database "{}" as it already exists...'.format(settings.DB_NAME))
-                await conn.execute('DROP DATABASE {}'.format(settings.DB_NAME))
-        else:
-            print('database "{}" does not yet exist'.format(settings.DB_NAME))
-        print('creating database "{}"...'.format(settings.DB_NAME))
-        await conn.execute('CREATE DATABASE {}'.format(settings.DB_NAME))
-    finally:
-        await conn.close()
+                print('database "{}" does not yet exist'.format(settings.DB_NAME))
+            print('creating database "{}"...'.format(settings.DB_NAME))
+            await conn.execute('CREATE DATABASE {}'.format(settings.DB_NAME))
+        finally:
+            await conn.close()
 
     conn = await asyncpg.connect(dsn=settings.db_dsn)
     try:
@@ -48,6 +49,6 @@ async def _prepare_database(delete_existing: bool) -> bool:
         await conn.close()
 
 
-def prepare_database(delete_existing: bool):
+def prepare_database(delete_existing: bool, create_db=True):
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(_prepare_database(delete_existing))
+    loop.run_until_complete(_prepare_database(delete_existing, create_db))
