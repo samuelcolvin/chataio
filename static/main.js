@@ -35,6 +35,9 @@ function Client () {
 <span class="right"><label>${message.ts}</label>
 </span>`
     events_elm.appendChild(new_el)
+    if (message.message.indexOf('!alert') === 0) {
+      alert(message.message)
+    }
   }
 
   function set_user_count(users) {
